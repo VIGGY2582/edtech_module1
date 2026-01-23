@@ -9,23 +9,44 @@ import json
 input_handler = InputHandler()
 
 def process_inputs(resume_file, skills_json_file, manual_skills):
-    """Process all inputs and return the extracted skills."""
+    """Process all inputs, extract skills, normalize them, and generate summary."""
     try:
-        # Process all inputs
+        # Process all inputs and extract skills
         result = input_handler.process_inputs(
             resume_path=resume_file.name if resume_file else "",
             skills_json_path=skills_json_file.name if skills_json_file else "",
             manual_skills=manual_skills
         )
         
-        if result["success"]:
-            skills = result["skills"]
-            if skills:
-                return "✅ Skills extracted and saved!\n\n" + "\n".join(f"• {skill}" for skill in sorted(skills))
+        if not result["success"] or not result["skills"]:
+            return "❌ No skills were extracted. Please check your inputs and try again."
+        
+        # Get the extracted skills
+        skills = result["skills"]
+        output = ["✅ Skills extracted and saved!\n"]
+        output.extend(f"• {skill}" for skill in sorted(skills))
+        
+        try:
+            # Normalize skills
+            norm_result = save_normalized_skills()
+            if norm_result.get("normalized_skills"):
+                output.append("\n🔄 Skills normalized successfully!")
+                
+                # Generate profile summary
+                summary_result = save_profile_summary()
+                if summary_result.get("profile_summary"):
+                    output.append("\n\n📝 Profile Summary:")
+                    output.append(summary_result["profile_summary"])
+                else:
+                    output.append("\n⚠️ Could not generate profile summary.")
             else:
-                return "ℹ️ No skills were extracted from the provided inputs."
-        else:
-            return "❌ Error processing inputs. Please check the file formats and try again."
+                output.append("\n⚠️ Could not normalize skills.")
+                
+        except Exception as e:
+            output.append(f"\n⚠️ An error occurred during processing: {str(e)}")
+        
+        return "\n".join(output)
+        
     except Exception as e:
         return f"❌ An error occurred: {str(e)}"
 
@@ -66,40 +87,23 @@ def create_ui():
                         label="✏️ Enter Skills (comma-separated)",
                         placeholder="e.g., Python, JavaScript, Data Analysis"
                     )
-                    extract_btn = gr.Button("Extract & Merge Skills", variant="primary")
-                
-                with gr.Group():
-                    normalize_btn = gr.Button("Normalize Skills", variant="secondary")
-                    summary_btn = gr.Button("Generate Profile Summary", variant="secondary")
+                    extract_btn = gr.Button("Extract Skills & Generate Summary", variant="primary")
             
             with gr.Column():
                 output = gr.Textbox(label="Output", lines=15, interactive=False)
         
-        # Button actions
+        # Button action
         extract_btn.click(
             fn=process_inputs,
             inputs=[resume_upload, json_upload, manual_input],
             outputs=output
         )
         
-        normalize_btn.click(
-            fn=normalize_skills,
-            inputs=None,
-            outputs=output
-        )
-        
-        summary_btn.click(
-            fn=generate_summary,
-            inputs=None,
-            outputs=output
-        )
-        
         gr.Markdown("### How to use")
         gr.Markdown("""
         1. Upload your resume (PDF or DOCX) or enter skills manually
-        2. Click 'Extract & Merge Skills' to process your inputs
-        3. Click 'Normalize Skills' to standardize skill names
-        4. Click 'Generate Profile Summary' to create a professional summary
+        2. Click 'Extract Skills & Generate Summary' to process everything
+        3. View your extracted skills and generated profile summary
         """)
     
     return demo
