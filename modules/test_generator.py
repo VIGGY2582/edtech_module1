@@ -7,16 +7,38 @@ import random
 import os
 import json
 
-def generate_test(skills: List[str], domain: str) -> str:
+def load_normalized_skills() -> List[str]:
+    """Load skills from normalized_skills.json file."""
+    try:
+        filepath = os.path.join("data", "normalized_skills.json")
+        if os.path.exists(filepath):
+            with open(filepath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                skills = data.get("normalized_skills", [])
+                print(f"[INFO] Loaded {len(skills)} skills from {filepath}")
+                return skills
+        else:
+            print(f"[WARNING] File not found: {filepath}")
+            return []
+    except Exception as e:
+        print(f"[ERROR] Error loading normalized skills: {e}")
+        return []
+
+
+def generate_test(skills: List[str] = None, domain: str = "Professional Skills") -> str:
     """
-    Generate a skill test based on provided skills and domain using Ollama.
+    Generate a skill test based on skills from normalized_skills.json.
     
     Args:
-        skills: List of skill strings to include in the test
+        skills: Optional list of skills (will load from file if not provided)
         domain: Domain/industry context for the test
     """
+    # Load skills from file if not provided
     if not skills:
-        return "❌ Error: No skills provided"
+        skills = load_normalized_skills()
+    
+    if not skills:
+        return "❌ Error: No skills found. Please extract skills first."
     
     try:
         import requests
@@ -24,32 +46,26 @@ def generate_test(skills: List[str], domain: str) -> str:
         return "❌ Error: requests library not installed. Run: pip install requests"
     
     try:
-        # Shuffle skills to get random selection
-        random.shuffle(skills)
-        selected_skills = skills[:min(5, len(skills))]  # Use up to 5 skills
-        
         questions = []
         question_number = 1
         
-        print(f"\n[INFO] Generating questions for {len(selected_skills)} skills using Ollama phi3:mini...")
+        print(f"\n[INFO] Generating ONE question per skill for {len(skills)} skills using Ollama phi3:mini...")
         
-        for skill in selected_skills:
-            # Generate 2 questions per skill
-            print(f"[INFO] Generating questions for skill: {skill}")
+        # Generate exactly ONE question per skill
+        for skill in skills:
+            print(f"[INFO] Generating question for skill: {skill}")
             
-            q1 = generate_question_with_ollama(question_number, skill, domain)
-            if q1:
-                questions.append(q1)
+            question = generate_question_with_ollama(question_number, skill, domain)
+            if question:
+                questions.append(question)
                 question_number += 1
-            
-            q2 = generate_question_with_ollama(question_number, skill, domain)
-            if q2:
-                questions.append(q2)
-                question_number += 1
+            else:
+                print(f"[WARNING] Failed to generate question for {skill}")
         
         if not questions:
             return "❌ Error: Failed to generate any questions. Make sure Ollama is running."
         
+        print(f"[INFO] Successfully generated {len(questions)} questions")
         return "\n".join(questions)
         
     except Exception as e:
@@ -65,14 +81,15 @@ def generate_question_with_ollama(number: int, skill: str, domain: str) -> str:
         url = "http://localhost:11434/api/generate"
         
         # Create prompt for generating a question
-        prompt = f"""Generate a multiple-choice question to test knowledge of {skill} in {domain}.
+        prompt = f"""Generate ONE multiple-choice question to test knowledge of {skill} in {domain}.
 
 Requirements:
 1. Create ONE technical question about {skill}
 2. Provide exactly 4 answer options (a, b, c, d)
-3. Mark the correct answer
+3. Mark the correct answer clearly
 4. Make it challenging and specific to {skill}
 5. Focus on practical knowledge, not just definitions
+6. Ensure the question tests real understanding of {skill}
 
 Format your response EXACTLY like this:
 Question: [Your question here]
@@ -96,7 +113,7 @@ Generate the question now:"""
         }
         
         # Make request to Ollama
-        print(f"[DEBUG] Requesting Ollama for question {number}...")
+        print(f"[DEBUG] Requesting Ollama for question {number} ({skill})...")
         response = requests.post(url, json=payload, timeout=60)
         
         if response.status_code == 200:
@@ -170,6 +187,16 @@ def generate_fallback_question(number: int, skill: str) -> str:
                 f"A framework for building applications",
                 f"A tool for version control",
                 f"A database management system"
+            ],
+            "correct": 0
+        },
+        {
+            "question": f"What is the main advantage of using {skill.upper()}?",
+            "options": [
+                f"Improved code readability and maintainability",
+                f"Better performance and optimization",
+                f"Enhanced security features",
+                f"Simplified deployment process"
             ],
             "correct": 0
         }
@@ -251,12 +278,18 @@ if __name__ == "__main__":
         print("2. Run: ollama serve")
         print("3. Run: ollama pull phi3:mini")
     
-    # Example usage
-    sample_skills = ["Python", "JavaScript", "SQL", "Git", "Docker"]
-    domain = "Software Development"
+    # Load skills from normalized_skills.json
+    print("\n📂 Loading skills from normalized_skills.json...")
+    skills = load_normalized_skills()
     
-    print("\n🔧 Generating test with sample skills...")
-    test = generate_test(sample_skills, domain)
+    if not skills:
+        print("\n⚠️ No skills found. Using sample skills for demonstration.")
+        skills = ["Python", "JavaScript", "SQL", "Git", "Docker"]
+    
+    domain = "Professional Skills"
+    
+    print(f"\n🔧 Generating ONE question for each of {len(skills)} skills...")
+    test = generate_test(skills, domain)
     
     if test.startswith("❌"):
         print(f"\n❌ Error: {test}")

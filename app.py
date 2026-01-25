@@ -46,6 +46,23 @@ def save_normalized_skills(skills: List[str]) -> List[str]:
         print(f"Error saving normalized skills: {e}")
         return []
 
+def load_normalized_skills() -> List[str]:
+    """Load skills from normalized_skills.json file."""
+    try:
+        filepath = os.path.join("data", "normalized_skills.json")
+        if os.path.exists(filepath):
+            with open(filepath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                skills = data.get("normalized_skills", [])
+                print(f"[INFO] Loaded {len(skills)} skills from {filepath}")
+                return skills
+        else:
+            print(f"[WARNING] File not found: {filepath}")
+            return []
+    except Exception as e:
+        print(f"[ERROR] Error loading normalized skills: {e}")
+        return []
+
 def parse_test_output(test_text: str) -> List[Dict[str, Any]]:
     """Parse the raw test output into a structured format."""
     questions = []
@@ -143,7 +160,7 @@ def process_skill_extraction(resume_file, skills_json_file, manual_skills):
 
 **Total Skills:** {len(normalized_skills)}
 
-Your skills have been saved and normalized. You can now use the **Terminal-Style Test** tab to test your knowledge on these skills!
+Your skills have been saved to `data/normalized_skills.json`. You can now use the **Terminal-Style Test** tab to test your knowledge!
 """
         
         return success_message
@@ -154,18 +171,36 @@ Your skills have been saved and normalized. You can now use the **Terminal-Style
         print(traceback.format_exc())
         return f"❌ An error occurred: {str(e)}"
 
-def start_terminal_test(skills_input):
-    """Start a terminal-style test with the given skills."""
-    skills = [s.strip() for s in skills_input.split(',') if s.strip()]
+def start_terminal_test(use_extracted_skills, manual_skills_input):
+    """Start a terminal-style test with skills from file or manual input."""
+    skills = []
+    
+    # Determine which skills to use
+    if use_extracted_skills:
+        # Load from normalized_skills.json
+        skills = load_normalized_skills()
+        if skills:
+            print(f"[INFO] Using {len(skills)} skills from normalized_skills.json")
+        else:
+            return "❌ No extracted skills found. Please extract skills first or enter manual skills.", gr.update(visible=False)
+    else:
+        # Use manual input
+        if manual_skills_input and manual_skills_input.strip():
+            skills = [s.strip() for s in manual_skills_input.split(',') if s.strip()]
+            print(f"[INFO] Using {len(skills)} manually entered skills")
+        else:
+            return "❌ Please enter skills manually or select 'Use Extracted Skills'.", gr.update(visible=False)
+    
     if not skills:
-        skills = ["Python", "Git", "SQL", "JavaScript", "Docker"]
+        return "❌ No skills available. Please extract skills or enter them manually.", gr.update(visible=False)
     
     # Generate test
+    print(f"[INFO] Generating test for skills: {skills}")
     test_text = generate_test(skills, "Professional Skills")
     test_questions = parse_test_output(test_text)
     
     if not test_questions:
-        return "❌ Failed to generate test questions. Please try again.", gr.update(visible=False)
+        return "❌ Failed to generate test questions. Please try again.\n\nMake sure Ollama is running if you want AI-generated questions.", gr.update(visible=False)
     
     # Save test state
     test_state.questions = test_questions
@@ -309,20 +344,32 @@ After extraction, you can use the **Terminal-Style Test** tab to test your knowl
             with gr.Row():
                 with gr.Column(scale=1):
                     gr.Markdown("### Terminal-Style Skill Test")
-                    terminal_skills = gr.Textbox(
-                        label="Enter your skills (comma-separated)",
-                        value="Python, Git, SQL, JavaScript, Docker",
-                        placeholder="e.g., Python, Git, SQL, JavaScript, Docker"
+                    
+                    # Option to use extracted skills or manual input
+                    use_extracted = gr.Checkbox(
+                        label="Use Extracted Skills from normalized_skills.json",
+                        value=True,
+                        info="If checked, uses skills from the Skill Extraction tab"
                     )
+                    
+                    manual_skills_terminal = gr.Textbox(
+                        label="Or enter skills manually (comma-separated)",
+                        value="",
+                        placeholder="e.g., Python, Git, SQL, JavaScript, Docker",
+                        info="Only used if 'Use Extracted Skills' is unchecked"
+                    )
+                    
                     start_test_btn = gr.Button("Start Terminal Test", variant="primary")
+                    
                     gr.Markdown("""
 **Instructions:**
-- Click "Start Terminal Test" to begin
-- For each question, type your answer (a, b, c, or d) and press Enter
-- You'll see immediate feedback after each answer
-- Complete all questions to see your final score
+1. Choose to use extracted skills OR enter manual skills
+2. Click "Start Terminal Test" to begin
+3. For each question, type your answer (a, b, c, or d) and press Enter
+4. You'll see immediate feedback after each answer
+5. Complete all questions to see your final score
 
-**Tip:** Extract your skills from the "Skill Extraction" tab first, then use those skills here for a personalized test!
+**Note:** Questions are generated using Ollama AI (phi3:mini model). Make sure Ollama is running for best results!
                     """)
                 
                 with gr.Column(scale=2):
@@ -343,7 +390,7 @@ After extraction, you can use the **Terminal-Style Test** tab to test your knowl
             # Terminal test event handlers
             start_test_btn.click(
                 fn=start_terminal_test,
-                inputs=terminal_skills,
+                inputs=[use_extracted, manual_skills_terminal],
                 outputs=[terminal_output, terminal_input]
             )
             
