@@ -1,0 +1,57 @@
+**Python Programming Skills Test for Software Development Professionals with a Focus on Data Analysis and Problem Solving**
+
+---
+
+**Question 1: Python Syntax Practice**  
+Write a simple Python function to calculate the factorial of a number. Which option correctly uses recursion?  
+a) def factorial(n): return n * factorial(n-1) if n > 0 else 1  
+b) def factorial(n): while n >= 1: print(n) n -= nerror: int function definition and base case application are incorrect.   
+c) def facoital_factorial(num): return num * math.factorial(num-1) if num > 1 else num  
+d) factorial = lambda x: -1 if not isinstance(x, int) or x < 0 else (lambda n=n+1: factorial(n))if n == 1else factoiral_function definition lacks proper syntax.   
+Correct Answer: a)  
+---
+
+**Question 2: Python Data Analysis Tasks**  
+Given the following CSV data representing sales figures for different regions, write a python code to find the region with highest total sales using pandas library:
+```
+Region,Sales
+North,105.7
+West,98.4
+East,76.2
+South,134.6
+```  
+a) ```python   
+import pandas as pd   
+data = {'Region': ['North', 'West', 'East', 'South'],    
+'Sales': [105.7, 98.4, 76.2, 134.6]}  
+df = pd.DataFrame(data)   
+max_sale_region = df[df['Sales']==df['Sales'].max()]['Region'].item()    
+print("Highest selling region is:", max_sale_region)  ```Correct Answer: a)  
+---
+
+**Question 3: Problem Solving in Python**  
+Given an array of integers, write a python function to find the first missing positive integer. A missing positive number cannot be zero or negative and does not include any numbers that are present at index i - num (i +1) where num is a member of the input array. For example for [3, 4, -1, 1] it should return '2'.  
+a) ```python    def firstMissingPositive(nums):     max_val = len(nums)    if not nums: return None else:        i=0;j=i+1 while j<max_val and (nums[j]<=0 or abs(nums[j])-1==j):            j+=1        
+while j < max_val:    
+if nums[j] > 0 and nums[abs(nums[j] - i) % len(nums)] != nums[abs(nums[j] - i)]:        swap = abs(nums[j]);     
+temp=nums[i];    
+nums[i]=swap;    
+nums[swap]=temp;  
+         if j == i:         
+            return i+1    print("First Missing positive number is", firstMissingPositive([3, 4, -1, 1])) ```Correct Answer: a)  
+---
+
+**Question 4: Python Advanced Data Analysis Using Pandas and Problem Solving Skills**  
+Given the following dataframe of students grades in different subjects. Write python code to create two new columns "Passed" which indicates whether student passed or failed (a grade higher than 60 is considered as passing). Also, calculate their overall average score using pandas library:
+```    Student Name        Maths       Science     History   Average Grade Pass/Fail?   Avg. Score over all subjects                            ```  
+ a) ```python      import pandas as pd         df = pd.DataFrame({'Student': ['Tom', 'Nick'], 
+'Maths': [90,56],      
+'Science': [78,42],       
+'History': [61,53]})           #Add column Pass/Fail?     def pass_or_fail(row): if row['Average Grade'] > 60: return 'Passed' else: return 'Failed'             df["Avg. Score over all subjects"] = (df[list('Maths Science History')]/(len(list('Maths Science History')) -1)).mean(axis=1)   
+           #Add column Pass/Fail?     df['Passed'] = df.apply(pass_or0, axis=1 )      print(df["Avg. Score over all subjects"]) ```Correct Answer: a)  
+---
+
+**Question 5: Problem Solving in Python involving Lists and Loops**  
+You are given two lists of integers representing points on the x-axis for two different entities, A and B respectively at various timestamps. Write python code to find out if entity A has more total distance covered than entity B between time 'T1' (0th index) till all elements in list or not:
+a) ```python       def compare_distances(A,B):    max_index = len(A)-1      accumulated_distance= 0   for i in range(max_index+1):        tempDistance+=abs(A[i]-A[i-1]) + abs(B[i]-B[i-1])     if (accumulated_distance/2) > len(A)-1:         print("Entity A has more distance covered") ```Correct Answer: a)  
+---

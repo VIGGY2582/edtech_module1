@@ -12,9 +12,11 @@ def load_user_skills():
         data = json.load(f)
         return data.get("raw_skills", [])
 
-def generate_profile_summary():
+def generate_profile_summary(skills=None):
     """Generate a profile summary based on user skills"""
-    skills = load_user_skills()
+    # Allow passing skills directly or load from file
+    if skills is None:
+        skills = load_user_skills()
     
     if not skills:
         return "Candidate profile is currently incomplete. Please add skills to generate a profile summary."
@@ -23,9 +25,9 @@ def generate_profile_summary():
     skills_text = ", ".join(skills)
     return f"A motivated professional with skills in {skills_text}. Quick learner with strong problem-solving abilities and a passion for continuous improvement."
 
-def save_profile_summary():
+def save_profile_summary(skills=None):
     """Save the generated profile summary to a file"""
-    summary = generate_profile_summary()
+    summary = generate_profile_summary(skills)
     output = {"profile_summary": summary}
     
     # Ensure directory exists
