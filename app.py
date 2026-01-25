@@ -107,8 +107,8 @@ def parse_test_output(test_text: str) -> List[Dict[str, Any]]:
     
     return questions
 
-def process_inputs(resume_file, skills_json_file, manual_skills):
-    """Process inputs and generate test questions."""
+def process_skill_extraction(resume_file, skills_json_file, manual_skills):
+    """Process inputs and extract skills only."""
     try:
         # Process all inputs and extract skills
         result = input_handler.process_inputs(
@@ -118,9 +118,7 @@ def process_inputs(resume_file, skills_json_file, manual_skills):
         )
         
         if not result["success"] or not result["skills"]:
-            error_response = ["❌ No skills were extracted. Please check your inputs and try again."]
-            error_response.extend([gr.update(visible=False)] * 23)
-            return error_response
+            return "❌ No skills were extracted. Please check your inputs and try again."
         
         # Save normalized skills
         print(f"\n[DEBUG] Raw skills before normalization: {result['skills']}")
@@ -128,144 +126,33 @@ def process_inputs(resume_file, skills_json_file, manual_skills):
             normalized_skills = save_normalized_skills(result["skills"])
             print(f"[DEBUG] Normalized skills: {normalized_skills}")
             if not normalized_skills:
-                error_response = ["❌ Failed to normalize skills. No valid skills were found."]
-                error_response.extend([gr.update(visible=False)] * 23)
-                return error_response
+                return "❌ Failed to normalize skills. No valid skills were found."
         except Exception as e:
             print(f"[ERROR] Error during skill normalization: {str(e)}")
-            error_response = [f"❌ Error normalizing skills: {str(e)}"]
-            error_response.extend([gr.update(visible=False)] * 23)
-            return error_response
+            return f"❌ Error normalizing skills: {str(e)}"
         
         # Generate profile summary
         save_profile_summary()
         
-        # Generate test
-        test_text = generate_test(normalized_skills, "Professional Skills")
+        # Create success message with extracted skills
+        skills_list = "\n".join([f"- {skill}" for skill in normalized_skills])
+        success_message = f"""## ✅ Skills Extracted Successfully!
+
+### Extracted Skills:
+{skills_list}
+
+**Total Skills:** {len(normalized_skills)}
+
+Your skills have been saved and normalized. You can now use the **Terminal-Style Test** tab to test your knowledge on these skills!
+"""
         
-        if not test_text or "error" in test_text.lower():
-            error_response = [f"❌ Error generating test: {test_text}"]
-            error_response.extend([gr.update(visible=False)] * 23)
-            return error_response
-        
-        # Parse test questions
-        test_questions = parse_test_output(test_text)
-        
-        if not test_questions:
-            error_response = ["❌ Failed to generate valid test questions. Please try again."]
-            error_response.extend([gr.update(visible=False)] * 23)
-            return error_response        
-        
-        # Update test state
-        test_state.questions = [q['question'] for q in test_questions]
-        test_state.correct_answers = [q['correct_answer'] for q in test_questions]
-        test_state.user_answers = [None] * len(test_questions)
-        
-        # Debug: Print parsed questions
-        for i, q in enumerate(test_questions):
-            print(f"Q{i+1}: {q['question']}")
-            print(f"Options: {q['options']}")
-            print(f"Correct: {q['correct_answer']}\n")
-        
-        print("\n[DEBUG] Creating UI response...")
-        
-        # 1. Status message and container
-        response = [
-            gr.update(value="✅ Test generated successfully! Please answer the questions below:", visible=True),  # status_output
-            gr.update(visible=True)  # test_container
-        ]
-        print("[DEBUG] Added status and container visibility")
-        
-        # 2. Question components (10 questions = 20 components)
-        for i in range(10):
-            if i < len(test_questions):
-                q = test_questions[i]
-                question_text = f"**{i+1}. {q['question']}**"
-                
-                # For markdown - make sure it's visible and has content
-                response.append(gr.update(
-                    value=question_text,
-                    visible=True
-                ))
-                
-                # For radio buttons - ensure proper formatting
-                response.append(gr.update(
-                    choices=q['options'],
-                    value=None,
-                    label=f"Question {i+1}",
-                    visible=True,
-                    interactive=True
-                ))
-                
-                print(f"[DEBUG] Added question {i+1}")
-                print(f"Question: {question_text}")
-                print(f"Options: {q['options']}")
-                print(f"Correct: {q['correct_answer']}")
-            else:
-                # For hidden questions
-                response.extend([
-                    gr.update(visible=False),
-                    gr.update(visible=False)
-                ])
-        
-        # 3. Submit button and results output
-        response.extend([
-            gr.update(visible=True),  # submit_btn
-            gr.update(visible=False)  # results_output
-        ])
-        
-        # Debug: Print the response structure
-        print("\n[DEBUG] Response structure:")
-        for i, item in enumerate(response):
-            print(f"{i}: {type(item).__name__} - {getattr(item, 'visible', 'N/A')}")
-        
-        print(f"[DEBUG] Total response elements: {len(response)}")
-        return response
+        return success_message
         
     except Exception as e:
         import traceback
-        print(f"[ERROR] Exception in process_inputs: {str(e)}")
+        print(f"[ERROR] Exception in process_skill_extraction: {str(e)}")
         print(traceback.format_exc())
-        error_response = [f"❌ An error occurred: {str(e)}"]
-        error_response.extend([gr.update(visible=False)] * 23)
-        return error_response
-
-def calculate_score(*user_answers):
-    """Calculate and display test results."""
-    try:
-        score = 0
-        results = []
-        
-        for i, (user_ans, correct_ans) in enumerate(zip(user_answers, test_state.correct_answers)):
-            is_correct = user_ans == correct_ans
-            if is_correct:
-                score += 1
-            results.append({
-                'question': test_state.questions[i],
-                'user_answer': user_ans or "Not answered",
-                'correct_answer': correct_ans,
-                'is_correct': is_correct
-            })
-        
-        total = len(test_state.questions)
-        percentage = (score / total * 100) if total > 0 else 0
-        
-        # Format results
-        result_text = f"## Test Results\n\n**Score: {score}/{total} ({percentage:.1f}%)**\n\n### Detailed Results:\n\n"
-        
-        for i, result in enumerate(results):
-            status = '✅' if result['is_correct'] else '❌'
-            result_text += f"""**{i+1}. {result['question']}**
-- Your answer: {result['user_answer']}
-- Correct answer: {result['correct_answer']}
-{status} {'Correct' if result['is_correct'] else 'Incorrect'}
-
-"""
-        
-        return gr.update(value=result_text, visible=True)
-        
-    except Exception as e:
-        return gr.update(value=f"❌ Error calculating score: {str(e)}", visible=True)
+        return f"❌ An error occurred: {str(e)}"
 
 def start_terminal_test(skills_input):
     """Start a terminal-style test with the given skills."""
@@ -373,15 +260,8 @@ def show_results():
 with gr.Blocks(title="SkillScope - Skill Assessment Tool") as demo:
     gr.Markdown("# SkillScope - Skill Assessment Tool")
     
-    # Add custom CSS for better question display
+    # Add custom CSS for better display
     custom_css = """
-    .question-text {
-        margin-bottom: 10px;
-        font-size: 1.1em;
-    }
-    .question-options {
-        margin-bottom: 20px;
-    }
     .terminal-output {
         font-family: monospace;
         white-space: pre;
@@ -396,10 +276,9 @@ with gr.Blocks(title="SkillScope - Skill Assessment Tool") as demo:
     gr.HTML(f'<style>{custom_css}</style>')
     
     with gr.Tabs() as tabs:
-        # Original Test Interface
-        with gr.TabItem("Standard Test"):
+        # Skill Extraction Tab (No Test)
+        with gr.TabItem("Skill Extraction"):
             with gr.Row():
-                # Left column - Inputs
                 with gr.Column(scale=1):
                     gr.Markdown("### Upload your resume or skills")
                     resume_upload = gr.File(label="Upload Resume (PDF/DOCX)", type="filepath", file_types=[".pdf", ".docx"])
@@ -408,73 +287,21 @@ with gr.Blocks(title="SkillScope - Skill Assessment Tool") as demo:
                         label="Or enter skills manually (comma-separated)", 
                         placeholder="e.g., Python, Machine Learning, Data Analysis"
                     )
-                    generate_btn = gr.Button("Generate Skill Test", variant="primary")
+                    extract_btn = gr.Button("Extract Skills", variant="primary")
                 
-                # Right column - Outputs
                 with gr.Column(scale=2):
-                    status_output = gr.Markdown("## Welcome to SkillScope!\n\nUpload your resume, skills JSON, or enter skills manually to begin.")
-                    
-                    # Test container (initially hidden)
-                    test_container = gr.Column(visible=False, variant="panel")
-                    with test_container:
-                        gr.Markdown("### Answer the following questions:")
-                        
-                        # Create question components
-                        test_questions = []
-                        for i in range(10):
-                            with gr.Row() as q_row:
-                                # Question text
-                                q_md = gr.Markdown("", visible=False, elem_classes=["question-text"])
-                                
-                                # Answer options
-                                q_radio = gr.Radio(
-                                    choices=[],
-                                    value=None,
-                                    label="",
-                                    interactive=True,
-                                    visible=False,
-                                    type="value",
-                                    elem_classes=["question-options"]
-                                )
-                                test_questions.extend([q_md, q_radio])
-                        
-                        # Submit button and results
-                        with gr.Row():
-                            submit_btn = gr.Button("Submit Test", visible=False, variant="primary")
-                        results_output = gr.Markdown("", visible=False)
-                        
-                        # Debug info
-                        debug_output = gr.Textbox(
-                            label="Debug Info",
-                            visible=False,  # Set to True for debugging
-                            interactive=False,
-                            lines=10
-                        )
+                    extraction_output = gr.Markdown("""## Welcome to SkillScope!
+
+Upload your resume, skills JSON, or enter skills manually to extract and analyze your skills.
+
+After extraction, you can use the **Terminal-Style Test** tab to test your knowledge!
+""")
             
-            # Set up event handlers for standard test
-            all_outputs = [status_output, test_container]  # First two outputs
-            
-            # Add question components (markdown + radio for each question)
-            for i in range(0, len(test_questions), 2):
-                all_outputs.extend([test_questions[i], test_questions[i+1]])
-                
-            # Add submit button and results
-            all_outputs.extend([submit_btn, results_output])
-            
-            print(f"[DEBUG] Total outputs: {len(all_outputs)}")
-            
-            # Generate test button click
-            generate_btn.click(
-                fn=process_inputs,
+            # Set up event handler for skill extraction
+            extract_btn.click(
+                fn=process_skill_extraction,
                 inputs=[resume_upload, skills_upload, manual_skills],
-                outputs=all_outputs
-            )
-            
-            # Submit test button click
-            submit_btn.click(
-                fn=calculate_score,
-                inputs=test_questions[1::2],  # Get every second element (the Radio components)
-                outputs=results_output
+                outputs=extraction_output
             )
         
         # Terminal-Style Test Tab
@@ -489,10 +316,13 @@ with gr.Blocks(title="SkillScope - Skill Assessment Tool") as demo:
                     )
                     start_test_btn = gr.Button("Start Terminal Test", variant="primary")
                     gr.Markdown("""
-                    **Instructions:**
-                    - Click "Start Terminal Test" to begin
-                    - For each question, type your answer (a, b, c, or d) and press Enter
-                    - You'll see immediate feedback after each answer
+**Instructions:**
+- Click "Start Terminal Test" to begin
+- For each question, type your answer (a, b, c, or d) and press Enter
+- You'll see immediate feedback after each answer
+- Complete all questions to see your final score
+
+**Tip:** Extract your skills from the "Skill Extraction" tab first, then use those skills here for a personalized test!
                     """)
                 
                 with gr.Column(scale=2):
