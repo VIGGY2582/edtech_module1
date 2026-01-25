@@ -1,0 +1,69 @@
+Question 1: In Python, what is `None` and how can it be used in a software development context?
+a) A type of built-in data structure similar to lists or dictionaries.
+b) An undefined value that indicates 'nothing' or 'no value'. It often represents the absence of a value or a deliberate null reference, which is essential when dealing with optional parameters and default values in functions.
+c) Another name for an empty string `""`.
+d) A special function to halt program execution unexpectedly.
+Correct Answer: b
+
+Question 2: In Python, which of the outer scopes is accessible by a function defined within another scope without using any keyword to explicitly define its visibility?
+a) The global scope outside all functions.
+b) Only variables declared inside the current block (e.g., inside an 'if' statement).
+c) Variables from both the enclosing and the global scopes, if they exist.
+d) None of the above; Python does not allow access to outer scopes by default.
+Correct Answer: c)
+
+Question 3: In JavaScript, which of these methods is used to create a closure that encapsulately accesses and modifies variables in its immediate lexical scope?
+a) `bind()` method on functions or using arrow function expressions.
+b) The use of global objects like 'window' as containers for scoped data.
+c) Direct assignment with the variable name without any wrapping mechanism, relying solely on JavaScript engines to manage closures efficiently.
+d) Utilizing IIFE (Immediately Invoked Function Expression).
+Correct Answer: d)
+
+Question 4: In JavaScript, how can you ensure that a piece of code runs after all other scripts have completed execution?
+a) Using an IIFE (Immediately Invoked Function Expression) to encapsulate your script.
+b) Placing the code inside curly braces `{}` at the end of another function's body, before its return statement.
+c) Attaching a listener for the DOMContentLoaded event on the document object and placing your code within that block after dispatching all other scripts using async/await or Promise chain with .then().
+d) Calling setTimeout() without any delay to force execution later in time than others, ensuring it runs last.
+Correct Answer: c)
+
+Question 5: When building a Docker container for an application, which of the following is NOT one of the benefits provided by using Docker?
+a) It enables lightweight packaging and isolation.
+b) It allows different services to communicate with each other within containers securely through inter-container links or networks.
+c) It ensures that applications are immune to any performance issues due to container overheads.
+d) It offers reproducibty, as Docker images can be versioned and shared easily among teams.
+Correct Answer: c)
+
+Question 6: In Docker, what is a Layered Architecture primarily used for?
+a) To optimize networking between containers.
+b) For efficient storage of container images and easy rollbacks or updates using tags.
+c) As an alternative to virtual machines with full operating system environments on each instance.
+d) It allows multiple applications running simultaneously without any performance impact.
+Correct Answer: b)
+
+Question 7: How do you select all unique customer names and their corresponding total purchase amounts in a SQL database where customers have made multiple purchases? Assume there is one table named "Purchases" with columns for CustomerID, PurchaseAmount, and Date. Use aggregate functions to retrieve this information without returning duplicate entries of the same name or amount pairing.
+a) SELECT DISTINCT CustomerName, SUM(PurchaseAmount) FROM Purchases GROUP BY CustomerID HAVING COUNT(*) > 1;
+b) SELECT CustomerName, SUM(PurchaseAmount) AS TotalSpend FROM Purchases WHERE EXISTS (SELECT * FROM Customers c JOIN Purchases p ON c.CustomerID = p.CustomerID GROUP BY c.CustomerName);
+c) SELECT DISTINCT CustomerName, SUM(PurchaseAmount) as TotalSpend FROM Purchases GROUP BY CustomerName HAVING COUNT(*) > 1;
+d) SELECT CustomerName, MAX(SUM(PurchaseAmount)) AS MaxSpend FROM Purchases GROUP BY CustomerID;
+Correct Answer: c)
+
+Question 8: In PostgreSQL, when you need to select all records from a table `employees` where only unique values are retrieved for each column combination and no duplicates should exist between them in any order of executions. Which SQL statement best accomplishes this objective?
+a) SELECT DISTINCT * FROM employees;
+b) DELETE FROM employees WHERE employee_id NOT IN (SELECT MIN(employee_id) FROM employees GROUP BY name, department);
+c) SELECT * FROM employees ORDER BY name, department;
+d) CREATE UNIQUE INDEX idx_employees ON employees (name, department);
+Correct Answer: a
+
+Question 9: When performing a merge in Git, which of the following is NOT a reason to resolve conflicts manually before completing the merge?
+a) You want full control over how changes from different branches are integrated.
+b) The automated conflict resolution tool has failed and cannot complete your merge automatically due to complex conflicting modifications across multiple files.
+c) All automatic merges in Git always result in cleaner code, so manual intervention is never necessary.
+d) You have identified sections of the merged file that require specific adjustments based on business logic or user experience considerations not taken into account by automated tools.
+Correct Answer: c)
+
+Question 10: In Git, what is the correct command to revert changes made in a specific commit?
+a) git undo [commit hash]
+b) git reset --hard HEAD~[n commits]
+c) git checkout -p [commit id]
+d) git revert [commit hash]
+Correct Answer: d)
