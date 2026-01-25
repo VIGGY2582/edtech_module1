@@ -1,7 +1,7 @@
 import os
 import json
 import gradio as gr
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from modules.input_handler import InputHandler
 from modules.test_generator import generate_test
 from modules.skill_normalizer import save_normalized_skills
@@ -18,6 +18,8 @@ class TestState:
         self.questions = []
         self.correct_answers = []
         self.user_answers = []
+        self.current_question = 0
+        self.score = 0
 
 test_state = TestState()
 
@@ -59,7 +61,7 @@ def parse_test_output(test_text: str) -> List[Dict[str, Any]]:
         
         # Check for question line
         if line.lower().startswith('question') and ':' in line:
-            if current_question and current_question['options']:
+            if current_question and current_question.get('options'):
                 questions.append(current_question)
                 
             # Extract question text
@@ -100,7 +102,7 @@ def parse_test_output(test_text: str) -> List[Dict[str, Any]]:
         i += 1
     
     # Add the last question if it exists
-    if current_question and current_question['options'] and current_question['correct_answer']:
+    if current_question and current_question.get('options') and current_question.get('correct_answer'):
         questions.append(current_question)
     
     return questions
@@ -180,14 +182,17 @@ def process_inputs(resume_file, skills_json_file, manual_skills):
                 q = test_questions[i]
                 question_text = f"**{i+1}. {q['question']}**"
                 
-                # For markdown
-                response.append(gr.update(value=question_text, visible=True))
+                # For markdown - make sure it's visible and has content
+                response.append(gr.update(
+                    value=question_text,
+                    visible=True
+                ))
                 
-                # For radio buttons
+                # For radio buttons - ensure proper formatting
                 response.append(gr.update(
                     choices=q['options'],
                     value=None,
-                    label="",
+                    label=f"Question {i+1}",
                     visible=True,
                     interactive=True
                 ))
@@ -195,6 +200,7 @@ def process_inputs(resume_file, skills_json_file, manual_skills):
                 print(f"[DEBUG] Added question {i+1}")
                 print(f"Question: {question_text}")
                 print(f"Options: {q['options']}")
+                print(f"Correct: {q['correct_answer']}")
             else:
                 # For hidden questions
                 response.extend([
@@ -261,20 +267,147 @@ def calculate_score(*user_answers):
     except Exception as e:
         return gr.update(value=f"❌ Error calculating score: {str(e)}", visible=True)
 
+def start_terminal_test(skills_input):
+    """Start a terminal-style test with the given skills."""
+    skills = [s.strip() for s in skills_input.split(',') if s.strip()]
+    if not skills:
+        skills = ["Python", "Git", "SQL", "JavaScript", "Docker"]
+    
+    # Generate test
+    test_text = generate_test(skills, "Professional Skills")
+    test_questions = parse_test_output(test_text)
+    
+    if not test_questions:
+        return "❌ Failed to generate test questions. Please try again.", gr.update(visible=False)
+    
+    # Save test state
+    test_state.questions = test_questions
+    test_state.current_question = 0
+    test_state.score = 0
+    test_state.user_answers = []
+    test_state.correct_answers = [q['correct_answer'] for q in test_questions]
+    
+    # Show first question
+    return show_question(0)
+
+def show_question(q_index):
+    """Display the current question in terminal-style format."""
+    if q_index >= len(test_state.questions):
+        return show_results()
+    
+    q = test_state.questions[q_index]
+    question_text = f"Question {q_index + 1} of {len(test_state.questions)}\n\n"
+    question_text += f"{q['question']}\n\n"
+    for i, option in enumerate(q['options']):
+        question_text += f"{chr(97+i)}) {option}\n"
+    
+    question_text += "\nYour answer (a/b/c/d): "
+    return question_text, gr.update(visible=True)
+
+def process_terminal_answer(answer, current_output):
+    """Process the user's answer in the terminal-style test."""
+    if not hasattr(test_state, 'current_question'):
+        return "No active test. Please start a new test.", gr.update(visible=False)
+    
+    q_index = test_state.current_question
+    q = test_state.questions[q_index]
+    answer = answer.strip().lower()
+    
+    # Process answer
+    if answer in ['a', 'b', 'c', 'd']:
+        user_answer = q['options'][ord(answer) - ord('a')]
+        test_state.user_answers.append(user_answer)
+        
+        if user_answer == q['correct_answer']:
+            test_state.score += 1
+            result = "✅ Correct!\n\n"
+        else:
+            result = f"❌ Incorrect. The correct answer was: {q['correct_answer']}\n\n"
+        
+        # Move to next question
+        test_state.current_question += 1
+        next_question = show_question(test_state.current_question)
+        if isinstance(next_question, tuple):
+            return result + next_question[0], next_question[1]
+        return current_output + "\n" + result + next_question, gr.update(visible=False)
+    else:
+        return current_output + "\nInvalid input. Please enter a, b, c, or d: ", gr.update(visible=True)
+
+def show_results():
+    """Display the test results in terminal-style format."""
+    total = len(test_state.questions)
+    score_percent = (test_state.score / total) * 100
+    
+    result = "="*50 + "\n"
+    result += "Test Results\n"
+    result += "="*50 + "\n\n"
+    result += f"Your score: {test_state.score}/{total} ({score_percent:.1f}%)\n\n"
+    
+    if score_percent >= 80:
+        result += "🎉 Excellent work! You have a strong understanding of these skills.\n"
+    elif score_percent >= 60:
+        result += "👍 Good job! You have a decent understanding, but there's room for improvement.\n"
+    else:
+        result += "📚 Keep practicing! Review the skills and try again.\n"
+    
+    result += "\n" + "="*50 + "\n"
+    result += "Detailed Results:\n"
+    result += "="*50 + "\n\n"
+    
+    for i, (q, user_ans) in enumerate(zip(test_state.questions, test_state.user_answers), 1):
+        result += f"Question {i}: {q['question']}\n"
+        result += f"Your answer: {user_ans}\n"
+        result += f"Correct answer: {q['correct_answer']}\n"
+        if user_ans == q['correct_answer']:
+            result += "✅ Correct!\n\n"
+        else:
+            result += "❌ Incorrect\n\n"
+    
+    result += "="*50 + "\n"
+    result += "Test completed. Thank you for using SkillScope!\n"
+    result += "="*50
+    
+    return result, gr.update(visible=False)
+
 # Create Gradio interface
 with gr.Blocks(title="SkillScope - Skill Assessment Tool") as demo:
     gr.Markdown("# SkillScope - Skill Assessment Tool")
     
+    # Add custom CSS for better question display
+    custom_css = """
+    .question-text {
+        margin-bottom: 10px;
+        font-size: 1.1em;
+    }
+    .question-options {
+        margin-bottom: 20px;
+    }
+    .terminal-output {
+        font-family: monospace;
+        white-space: pre;
+        background-color: #1e1e1e;
+        color: #f0f0f0;
+        padding: 15px;
+        border-radius: 5px;
+        height: 400px;
+        overflow-y: auto;
+    }
+    """
+    gr.HTML(f'<style>{custom_css}</style>')
+    
     with gr.Tabs() as tabs:
-        with gr.TabItem("Skill Extraction"):
+        # Original Test Interface
+        with gr.TabItem("Standard Test"):
             with gr.Row():
                 # Left column - Inputs
                 with gr.Column(scale=1):
                     gr.Markdown("### Upload your resume or skills")
                     resume_upload = gr.File(label="Upload Resume (PDF/DOCX)", type="filepath", file_types=[".pdf", ".docx"])
                     skills_upload = gr.File(label="Or upload skills JSON", type="filepath", file_types=[".json"])
-                    manual_skills = gr.Textbox(label="Or enter skills manually (comma-separated)", 
-                                             placeholder="e.g., Python, Machine Learning, Data Analysis")
+                    manual_skills = gr.Textbox(
+                        label="Or enter skills manually (comma-separated)", 
+                        placeholder="e.g., Python, Machine Learning, Data Analysis"
+                    )
                     generate_btn = gr.Button("Generate Skill Test", variant="primary")
                 
                 # Right column - Outputs
@@ -289,19 +422,21 @@ with gr.Blocks(title="SkillScope - Skill Assessment Tool") as demo:
                         # Create question components
                         test_questions = []
                         for i in range(10):
-                            # Each question has a Markdown (question) and Radio (options)
                             with gr.Row() as q_row:
-                                with gr.Column():
-                                    q_md = gr.Markdown("", visible=False)
-                                    q_radio = gr.Radio(
-                                        choices=[], 
-                                        value=None, 
-                                        label="",
-                                        interactive=True,
-                                        visible=False,
-                                        type="value"
-                                    )
-                                    test_questions.extend([q_md, q_radio])
+                                # Question text
+                                q_md = gr.Markdown("", visible=False, elem_classes=["question-text"])
+                                
+                                # Answer options
+                                q_radio = gr.Radio(
+                                    choices=[],
+                                    value=None,
+                                    label="",
+                                    interactive=True,
+                                    visible=False,
+                                    type="value",
+                                    elem_classes=["question-options"]
+                                )
+                                test_questions.extend([q_md, q_radio])
                         
                         # Submit button and results
                         with gr.Row():
@@ -316,7 +451,7 @@ with gr.Blocks(title="SkillScope - Skill Assessment Tool") as demo:
                             lines=10
                         )
             
-            # Set up event handlers
+            # Set up event handlers for standard test
             all_outputs = [status_output, test_container]  # First two outputs
             
             # Add question components (markdown + radio for each question)
@@ -340,6 +475,52 @@ with gr.Blocks(title="SkillScope - Skill Assessment Tool") as demo:
                 fn=calculate_score,
                 inputs=test_questions[1::2],  # Get every second element (the Radio components)
                 outputs=results_output
+            )
+        
+        # Terminal-Style Test Tab
+        with gr.TabItem("Terminal-Style Test"):
+            with gr.Row():
+                with gr.Column(scale=1):
+                    gr.Markdown("### Terminal-Style Skill Test")
+                    terminal_skills = gr.Textbox(
+                        label="Enter your skills (comma-separated)",
+                        value="Python, Git, SQL, JavaScript, Docker",
+                        placeholder="e.g., Python, Git, SQL, JavaScript, Docker"
+                    )
+                    start_test_btn = gr.Button("Start Terminal Test", variant="primary")
+                    gr.Markdown("""
+                    **Instructions:**
+                    - Click "Start Terminal Test" to begin
+                    - For each question, type your answer (a, b, c, or d) and press Enter
+                    - You'll see immediate feedback after each answer
+                    """)
+                
+                with gr.Column(scale=2):
+                    terminal_output = gr.Textbox(
+                        label="Test Output",
+                        lines=20,
+                        max_lines=50,
+                        interactive=False,
+                        elem_classes=["terminal-output"]
+                    )
+                    terminal_input = gr.Textbox(
+                        label="Your Answer",
+                        placeholder="Type your answer (a/b/c/d) and press Enter",
+                        visible=False,
+                        container=False
+                    )
+            
+            # Terminal test event handlers
+            start_test_btn.click(
+                fn=start_terminal_test,
+                inputs=terminal_skills,
+                outputs=[terminal_output, terminal_input]
+            )
+            
+            terminal_input.submit(
+                fn=process_terminal_answer,
+                inputs=[terminal_input, terminal_output],
+                outputs=[terminal_output, terminal_input]
             )
 
 if __name__ == "__main__":
