@@ -1,15 +1,14 @@
 """
 Module 3: Test Generator for SkillScope
-Generates skill tests using local Ollama LLM.
+Generates skill tests using a simple template-based approach.
 """
-import os
-import json
 from typing import List
-import ollama
+import random
+import os
 
 def generate_test(skills: List[str], domain: str) -> str:
     """
-    Generate a skill test based on provided skills and domain using Ollama.
+    Generate a skill test based on provided skills and domain.
     
     Args:
         skills: List of skill strings to include in the test
@@ -19,134 +18,91 @@ def generate_test(skills: List[str], domain: str) -> str:
         return "❌ Error: No skills provided"
 
     try:
-        # Format the skills for the prompt
-        skills_text = ", ".join(skills[:5])  # Use up to 5 skills to keep the test focused
+        # Shuffle skills to get random selection
+        random.shuffle(skills)
+        selected_skills = skills[:min(5, len(skills))]  # Use up to 5 skills
         
-        # Create a clear prompt
-        prompt = f"""Generate a 5-question multiple choice test for a {domain} professional.
-Focus on these skills: {skills_text}.
+        questions = []
+        question_number = 1
+        
+        for skill in selected_skills:
+            # Generate different types of questions for each skill
+            questions.append(generate_question(question_number, skill, "purpose"))
+            question_number += 1
+            
+            questions.append(generate_question(question_number, skill, "feature"))
+            question_number += 1
 
-Requirements:
-- Each question should have 4 options (a-d) with one correct answer
-- Format as plain text, no markdown
-- Clearly indicate the correct answer after each question
-- Keep questions concise and practical
-- Focus on practical, real-world scenarios
-- Include a mix of conceptual and practical questions
-
-Format each question exactly like this:
-Question 1: [question text]
-a) [option 1]
-b) [option 2]
-c) [option 3]
-d) [option 4]
-Correct Answer: [letter]
-
-Example:
-Question 1: What is the time complexity of a binary search algorithm?
-a) O(1)
-b) O(log n)
-c) O(n)
-d) O(n²)
-Correct Answer: b
-"""
-        # Generate content using Ollama
-        response = ollama.chat(
-            model="phi3:mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a helpful assistant that generates professional skill assessment tests. Provide clear, well-formatted multiple choice questions with exactly 4 options each and indicate the correct answer."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            options={
-                'temperature': 0.7,
-                'top_p': 0.9
-            }
-        )
-        
-        # Extract and clean the response
-        test_content = response['message']['content'].strip()
-        
-        # Ensure the response follows the required format
-        if "question 1:" not in test_content.lower():
-            # If the response doesn't follow the format, try to fix it
-            questions = []
-            lines = test_content.split('\n')
-            current_question = None
-            
-            for line in lines:
-                line = line.strip()
-                if line.lower().startswith(('question', 'q:')):
-                    if current_question:
-                        questions.append(current_question)
-                    current_question = [line]
-                elif current_question is not None:
-                    current_question.append(line)
-            
-            if current_question:
-                questions.append(current_question)
-            
-            # Reformat the questions
-            reformatted = []
-            for i, q in enumerate(questions, 1):
-                if len(q) >= 6:  # At least question + 4 options + answer
-                    reformatted.append(f"Question {i}: {q[0].split(':', 1)[1].strip()}")
-                    for j in range(1, 5):
-                        if j-1 < len(q):
-                            reformatted.append(f"{'abcd'[j-1]}) {q[j].strip()}")
-                    reformatted.append(f"Correct Answer: {q[-1][-1].lower()}")
-                    reformatted.append("")
-            
-            test_content = "\n".join(reformatted).strip()
-        
-        return test_content
+        return "\n".join(questions)
         
     except Exception as e:
         return f"❌ Error generating test: {str(e)}"
 
-def save_test_to_file(test_content: str, filename: str = "skill_test.txt") -> bool:
+def generate_question(number: int, skill: str, q_type: str) -> str:
+    """Generate a single question based on type."""
+    if q_type == "purpose":
+        question = f"Question {number}: What is the primary purpose of {skill.upper()} in software development?"
+        options = [
+            "To manage database operations",
+            "To handle user interface design",
+            "To implement business logic",
+            "To optimize network performance"
+        ]
+        correct = 2  # Index of correct answer
+    else:  # feature question
+        question = f"Question {number}: Which of these is a key feature of {skill.upper()}?"
+        options = [
+            "Object-oriented programming support",
+            "Functional programming paradigm",
+            "Both A and B",
+            "None of the above"
+        ]
+        correct = 2  # Index of correct answer
+    
+    # Shuffle options but keep track of correct answer
+    correct_answer = options[correct]
+    random.shuffle(options)
+    correct_letter = "abcd"[options.index(correct_answer)]
+    
+    # Format the question and options
+    question_text = [f"{question}"]
+    for i, option in enumerate(options):
+        question_text.append(f"{'abcd'[i]}) {option}")
+    question_text.append(f"Correct Answer: {correct_letter}\n")
+    
+    return "\n".join(question_text)
+
+def save_test_to_file(test_content: str, filename: str = "skill_test.txt") -> None:
     """Save the generated test to a file."""
     try:
         os.makedirs("data", exist_ok=True)
         filepath = os.path.join("data", filename)
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(test_content)
-        return True
+        print(f"✅ Test saved to {filepath}")
     except Exception as e:
-        print(f"❌ Error saving test: {str(e)}")
-        return False
+        print(f"❌ Error saving test: {e}")
 
 if __name__ == "__main__":
     print("="*50)
-    print("🚀 Starting SkillScope Test Generator (Local AI)")
+    print("🚀 Starting SkillScope Test Generator")
     print("="*50)
     
-    # Test the module
-    test_skills = ["Python", "Machine Learning", "Data Analysis"]
-    test_domain = "Data Science"
+    # Example usage
+    sample_skills = ["Python", "JavaScript", "SQL", "Git", "Docker"]
+    domain = "Software Development"
     
-    print(f"Generating test for skills: {', '.join(test_skills)}")
-    test = generate_test(test_skills, test_domain)
+    print("\n🔧 Generating test with sample skills...")
+    test = generate_test(sample_skills, domain)
     
     if test.startswith("❌"):
-        print(test)
+        print(f"\n❌ Error: {test}")
     else:
-        print("\n" + "="*50)
-        print("📝 Generated Test:")
-        print("="*50)
+        print("\n📝 Generated Test:")
+        print("-"*50)
         print(test)
+        print("-"*50)
         
-        # Save to file
-        if save_test_to_file(test):
-            print("\n✅ Test generated successfully and saved to data/skill_test.txt")
-        else:
-            print("\n❌ Failed to save test to file")
-    
-    print("\n" + "="*50)
-    print("🏁 Test generation completed")
-    print("="*50)
+        # Save the test
+        save_test_to_file(test)
+        print("\n✨ Test generation complete!")
