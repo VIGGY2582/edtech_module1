@@ -26,10 +26,7 @@ test_state = TestState()
 def save_normalized_skills(skills: List[str]) -> List[str]:
     """Save normalized skills to a file."""
     try:
-        # Simple normalization: convert to lowercase and strip whitespace
         normalized_skills = [skill.strip().lower() for skill in skills if skill.strip()]
-        
-        # Remove duplicates while preserving order
         seen = set()
         unique_skills = []
         for skill in normalized_skills:
@@ -37,7 +34,6 @@ def save_normalized_skills(skills: List[str]) -> List[str]:
                 seen.add(skill)
                 unique_skills.append(skill)
         
-        # Save to file
         os.makedirs("data", exist_ok=True)
         with open("data/normalized_skills.json", "w") as f:
             json.dump({"normalized_skills": unique_skills}, f, indent=2)
@@ -69,19 +65,16 @@ def parse_test_output(test_text: str) -> List[Dict[str, Any]]:
     current_question = None
     current_options = []
     
-    # Split the test text into lines and process each line
     lines = [line.strip() for line in test_text.split('\n') if line.strip()]
     
     i = 0
     while i < len(lines):
         line = lines[i]
         
-        # Check for question line
         if line.lower().startswith('question') and ':' in line:
             if current_question and current_question.get('options'):
                 questions.append(current_question)
                 
-            # Extract question text
             question_text = line.split(':', 1)[1].strip()
             current_question = {
                 'question': question_text,
@@ -92,22 +85,19 @@ def parse_test_output(test_text: str) -> List[Dict[str, Any]]:
             i += 1
             continue
             
-        # Check for answer options (a), b), etc.)
         if (current_question is not None and 
             len(line) > 2 and 
             line[0].lower() in 'abcd' and 
             line[1] in '.)'):
             
-            option_text = line[3:].strip()  # Skip the "X) " part
+            option_text = line[3:].strip()
             current_question['options'].append(option_text)
             i += 1
             continue
             
-        # Check for correct answer
         if (current_question is not None and 
             'correct answer:' in line.lower()):
             
-            # Extract the letter of the correct answer
             correct_letter = line.split(':')[-1].strip().lower()
             if correct_letter and correct_letter in 'abcd':
                 answer_index = ord(correct_letter) - ord('a')
@@ -118,7 +108,6 @@ def parse_test_output(test_text: str) -> List[Dict[str, Any]]:
             
         i += 1
     
-    # Add the last question if it exists
     if current_question and current_question.get('options') and current_question.get('correct_answer'):
         questions.append(current_question)
     
@@ -127,7 +116,6 @@ def parse_test_output(test_text: str) -> List[Dict[str, Any]]:
 def process_skill_extraction(resume_file, skills_json_file, manual_skills):
     """Process inputs and extract skills only."""
     try:
-        # Process all inputs and extract skills
         result = input_handler.process_inputs(
             resume_path=resume_file.name if resume_file else None,
             skills_json_path=skills_json_file.name if skills_json_file else None,
@@ -137,21 +125,15 @@ def process_skill_extraction(resume_file, skills_json_file, manual_skills):
         if not result["success"] or not result["skills"]:
             return "❌ No skills were extracted. Please check your inputs and try again."
         
-        # Save normalized skills
         print(f"\n[DEBUG] Raw skills before normalization: {result['skills']}")
-        try:
-            normalized_skills = save_normalized_skills(result["skills"])
-            print(f"[DEBUG] Normalized skills: {normalized_skills}")
-            if not normalized_skills:
-                return "❌ Failed to normalize skills. No valid skills were found."
-        except Exception as e:
-            print(f"[ERROR] Error during skill normalization: {str(e)}")
-            return f"❌ Error normalizing skills: {str(e)}"
+        normalized_skills = save_normalized_skills(result["skills"])
+        print(f"[DEBUG] Normalized skills: {normalized_skills}")
         
-        # Generate profile summary
+        if not normalized_skills:
+            return "❌ Failed to normalize skills. No valid skills were found."
+        
         save_profile_summary()
         
-        # Create success message with extracted skills
         skills_list = "\n".join([f"- {skill}" for skill in normalized_skills])
         success_message = f"""## ✅ Skills Extracted Successfully!
 
@@ -162,7 +144,6 @@ def process_skill_extraction(resume_file, skills_json_file, manual_skills):
 
 Your skills have been saved to `data/normalized_skills.json`. You can now use the **Terminal-Style Test** tab to test your knowledge!
 """
-        
         return success_message
         
     except Exception as e:
@@ -175,26 +156,19 @@ def start_terminal_test(use_extracted_skills, manual_skills_input):
     """Start a terminal-style test with skills from file or manual input."""
     skills = []
     
-    # Determine which skills to use
     if use_extracted_skills:
-        # Load from normalized_skills.json
         skills = load_normalized_skills()
-        if skills:
-            print(f"[INFO] Using {len(skills)} skills from normalized_skills.json")
-        else:
+        if not skills:
             return "❌ No extracted skills found. Please extract skills first or enter manual skills.", gr.update(visible=False)
     else:
-        # Use manual input
         if manual_skills_input and manual_skills_input.strip():
             skills = [s.strip() for s in manual_skills_input.split(',') if s.strip()]
-            print(f"[INFO] Using {len(skills)} manually entered skills")
         else:
             return "❌ Please enter skills manually or select 'Use Extracted Skills'.", gr.update(visible=False)
     
     if not skills:
         return "❌ No skills available. Please extract skills or enter them manually.", gr.update(visible=False)
     
-    # Generate test
     print(f"[INFO] Generating test for skills: {skills}")
     test_text = generate_test(skills, "Professional Skills")
     test_questions = parse_test_output(test_text)
@@ -202,14 +176,12 @@ def start_terminal_test(use_extracted_skills, manual_skills_input):
     if not test_questions:
         return "❌ Failed to generate test questions. Please try again.\n\nMake sure Ollama is running if you want AI-generated questions.", gr.update(visible=False)
     
-    # Save test state
     test_state.questions = test_questions
     test_state.current_question = 0
     test_state.score = 0
     test_state.user_answers = []
     test_state.correct_answers = [q['correct_answer'] for q in test_questions]
     
-    # Show first question
     return show_question(0)
 
 def show_question(q_index):
@@ -235,7 +207,6 @@ def process_terminal_answer(answer, current_output):
     q = test_state.questions[q_index]
     answer = answer.strip().lower()
     
-    # Process answer
     if answer in ['a', 'b', 'c', 'd']:
         user_answer = q['options'][ord(answer) - ord('a')]
         test_state.user_answers.append(user_answer)
@@ -246,7 +217,6 @@ def process_terminal_answer(answer, current_output):
         else:
             result = f"❌ Incorrect. The correct answer was: {q['correct_answer']}\n\n"
         
-        # Move to next question
         test_state.current_question += 1
         next_question = show_question(test_state.current_question)
         if isinstance(next_question, tuple):
@@ -256,14 +226,69 @@ def process_terminal_answer(answer, current_output):
         return current_output + "\nInvalid input. Please enter a, b, c, or d: ", gr.update(visible=True)
 
 def show_results():
-    """Display the test results in terminal-style format."""
-    total = len(test_state.questions)
-    score_percent = (test_state.score / total) * 100
+    """Display the test results in terminal-style format and save to JSON."""
+    from datetime import datetime
     
+    total = len(test_state.questions)
+    score = test_state.score
+    score_percent = (score / total) * 100
+    
+    # Determine skill level
+    if score_percent < 40:
+        level = "Beginner"
+    elif score_percent <= 70:
+        level = "Intermediate"
+    else:
+        level = "Advanced"
+    
+    # Identify strengths and weak areas
+    strengths = []
+    weak_areas = []
+    
+    for i, (q, user_ans) in enumerate(zip(test_state.questions, test_state.user_answers)):
+        topic = q.get('skill', f"Question {i+1}")
+        if user_ans == q['correct_answer']:
+            strengths.append(topic)
+        else:
+            weak_areas.append(topic)
+    
+    # Create evaluation result
+    evaluation_result = {
+        "test_id": f"test_{int(datetime.now().timestamp())}",
+        "score": score,
+        "total_questions": total,
+        "percentage": round(score_percent, 2),
+        "level": level,
+        "strengths": strengths,
+        "weak_areas": weak_areas,
+        "timestamp": datetime.now().isoformat(),
+        "detailed_results": [
+            {
+                "question": q['question'],
+                "user_answer": user_ans,
+                "correct_answer": q['correct_answer'],
+                "is_correct": user_ans == q['correct_answer']
+            }
+            for q, user_ans in zip(test_state.questions, test_state.user_answers)
+        ]
+    }
+    
+    # Save evaluation result to JSON
+    os.makedirs("data", exist_ok=True)
+    result_file = os.path.join("data", "evaluation_result.json")
+    try:
+        with open(result_file, "w", encoding="utf-8") as f:
+            json.dump(evaluation_result, f, indent=4, ensure_ascii=False)
+        print(f"[INFO] ✅ Evaluation results saved to {result_file}")
+    except Exception as e:
+        print(f"[ERROR] ❌ Failed to save evaluation results: {e}")
+    
+    # Format terminal output
     result = "="*50 + "\n"
     result += "Test Results\n"
     result += "="*50 + "\n\n"
-    result += f"Your score: {test_state.score}/{total} ({score_percent:.1f}%)\n\n"
+    result += f"Your score: {score}/{total} ({score_percent:.1f}%)\n"
+    result += f"Level: {level}\n\n"
     
     if score_percent >= 80:
         result += "🎉 Excellent work! You have a strong understanding of these skills.\n"
@@ -285,8 +310,15 @@ def show_results():
         else:
             result += "❌ Incorrect\n\n"
     
+    # Add summary
+    result += "="*50 + "\n"
+    if strengths:
+        result += f"✅ Strengths: {', '.join(strengths[:3])}\n"
+    if weak_areas:
+        result += f"📚 Areas to improve: {', '.join(weak_areas[:3])}\n"
     result += "="*50 + "\n"
     result += "Test completed. Thank you for using SkillScope!\n"
+    result += f"📄 Results saved to: {result_file}\n"
     result += "="*50
     
     return result, gr.update(visible=False)
@@ -295,7 +327,6 @@ def show_results():
 with gr.Blocks(title="SkillScope - Skill Assessment Tool") as demo:
     gr.Markdown("# SkillScope - Skill Assessment Tool")
     
-    # Add custom CSS for better display
     custom_css = """
     .terminal-output {
         font-family: monospace;
@@ -311,7 +342,7 @@ with gr.Blocks(title="SkillScope - Skill Assessment Tool") as demo:
     gr.HTML(f'<style>{custom_css}</style>')
     
     with gr.Tabs() as tabs:
-        # Skill Extraction Tab (No Test)
+        # Skill Extraction Tab
         with gr.TabItem("Skill Extraction"):
             with gr.Row():
                 with gr.Column(scale=1):
@@ -332,7 +363,6 @@ Upload your resume, skills JSON, or enter skills manually to extract and analyze
 After extraction, you can use the **Terminal-Style Test** tab to test your knowledge!
 """)
             
-            # Set up event handler for skill extraction
             extract_btn.click(
                 fn=process_skill_extraction,
                 inputs=[resume_upload, skills_upload, manual_skills],
@@ -345,7 +375,6 @@ After extraction, you can use the **Terminal-Style Test** tab to test your knowl
                 with gr.Column(scale=1):
                     gr.Markdown("### Terminal-Style Skill Test")
                     
-                    # Option to use extracted skills or manual input
                     use_extracted = gr.Checkbox(
                         label="Use Extracted Skills from normalized_skills.json",
                         value=True,
