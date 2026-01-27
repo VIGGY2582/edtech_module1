@@ -362,7 +362,7 @@ with gr.Blocks(title="SkillScope - Skill Assessment Tool") as demo:
     }
     .domain-suggestion {
         padding: 15px;
-        font-family: monospace;
+        font-family: monos
         background: #1e1e1e;
         color: #f0f0f0;
         border-radius: 8px;
