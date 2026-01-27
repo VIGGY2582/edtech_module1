@@ -6,6 +6,7 @@ from modules.input_handler import InputHandler
 from modules.test_generator import generate_test
 from modules.skill_normalizer import save_normalized_skills
 from modules.profile_summary import save_profile_summary
+from modules.domain_suggester import get_domain_suggestions
 
 # Create data directory if it doesn't exist
 os.makedirs("data", exist_ok=True)
@@ -201,7 +202,7 @@ def show_question(q_index):
 def process_terminal_answer(answer, current_output):
     """Process the user's answer in the terminal-style test."""
     if not hasattr(test_state, 'current_question'):
-        return "No active test. Please start a new test.", gr.update(visible=False)
+        return "No active test. Please start a new test.", gr.update(visible=False), gr.update()
     
     q_index = test_state.current_question
     q = test_state.questions[q_index]
@@ -218,12 +219,19 @@ def process_terminal_answer(answer, current_output):
             result = f"❌ Incorrect. The correct answer was: {q['correct_answer']}\n\n"
         
         test_state.current_question += 1
-        next_question = show_question(test_state.current_question)
-        if isinstance(next_question, tuple):
-            return result + next_question[0], next_question[1]
-        return current_output + "\n" + result + next_question, gr.update(visible=False)
+        
+        if test_state.current_question >= len(test_state.questions):
+            # Test is complete, show results
+            final_result, input_update, domain_msg = show_results()
+            return final_result, input_update, domain_msg
+        else:
+            # Show next question
+            next_question = show_question(test_state.current_question)
+            if isinstance(next_question, tuple):
+                return result + next_question[0], next_question[1], gr.update()
+            return current_output + "\n" + result + next_question, gr.update(visible=False), gr.update()
     else:
-        return current_output + "\nInvalid input. Please enter a, b, c, or d: ", gr.update(visible=True)
+        return current_output + "\nInvalid input. Please enter a, b, c, or d: ", gr.update(visible=True), gr.update()
 
 def show_results():
     """Display the test results in terminal-style format and save to JSON."""
@@ -283,6 +291,19 @@ def show_results():
     except Exception as e:
         print(f"[ERROR] ❌ Failed to save evaluation results: {e}")
     
+    # Get domain suggestions
+    try:
+        domains = get_domain_suggestions()
+        domain_message = "## 🎯 Domain Suggestions\n\n"
+        domain_message += "Based on your assessment and skill profile, you might be interested in these career domains:\n\n"
+        domain_message += "\n".join([f"### {i+1}. {domain}" for i, domain in enumerate(domains)])
+        domain_message += "\n\n---\n\n"
+        domain_message += "💡 **Tip:** Research these domains further and align your learning path with your career goals!"
+    except Exception as e:
+        print(f"[ERROR] ❌ Failed to generate domain suggestions: {e}")
+        domain_message = "## ⚠️ Domain Suggestions Unavailable\n\n"
+        domain_message += "Could not generate domain suggestions at this time. Please try again later."
+    
     # Format terminal output
     result = "="*50 + "\n"
     result += "Test Results\n"
@@ -319,9 +340,10 @@ def show_results():
     result += "="*50 + "\n"
     result += "Test completed. Thank you for using SkillScope!\n"
     result += f"📄 Results saved to: {result_file}\n"
+    result += "\n💡 Check the 'Domain Suggestions' tab for career recommendations!\n"
     result += "="*50
     
-    return result, gr.update(visible=False)
+    return result, gr.update(visible=False), gr.update(value=domain_message, visible=True)
 
 # Create Gradio interface
 with gr.Blocks(title="SkillScope - Skill Assessment Tool") as demo:
@@ -338,10 +360,18 @@ with gr.Blocks(title="SkillScope - Skill Assessment Tool") as demo:
         height: 400px;
         overflow-y: auto;
     }
+    .domain-suggestion {
+        padding: 15px;
+        font-family: monospace;
+        background: #1e1e1e;
+        color: #f0f0f0;
+        border-radius: 8px;
+        border-left: 4px solid #4CAF50;
+    }
     """
     gr.HTML(f'<style>{custom_css}</style>')
     
-    with gr.Tabs() as tabs:
+    with gr.Tabs() as main_tabs:
         # Skill Extraction Tab
         with gr.TabItem("Skill Extraction"):
             with gr.Row():
@@ -396,7 +426,7 @@ After extraction, you can use the **Terminal-Style Test** tab to test your knowl
 2. Click "Start Terminal Test" to begin
 3. For each question, type your answer (a, b, c, or d) and press Enter
 4. You'll see immediate feedback after each answer
-5. Complete all questions to see your final score
+5. Complete all questions to see your final score and domain suggestions
 
 **Note:** Questions are generated using Ollama AI (phi3:mini model). Make sure Ollama is running for best results!
                     """)
@@ -415,19 +445,36 @@ After extraction, you can use the **Terminal-Style Test** tab to test your knowl
                         visible=False,
                         container=False
                     )
-            
-            # Terminal test event handlers
-            start_test_btn.click(
-                fn=start_terminal_test,
-                inputs=[use_extracted, manual_skills_terminal],
-                outputs=[terminal_output, terminal_input]
+        
+        # Domain Suggestions Tab - Define BEFORE using it
+        with gr.TabItem("Domain Suggestions"):
+            domain_suggestions_output = gr.Markdown(
+                """## 🎯 Domain Suggestions
+
+Complete the skill assessment test to receive personalized career domain recommendations based on your skills and performance.
+
+**How it works:**
+1. Complete the Terminal-Style Test
+2. Your results will be analyzed
+3. Domain suggestions will appear here automatically
+
+Get started by going to the **Terminal-Style Test** tab!
+""",
+                elem_classes=["domain-suggestion"]
             )
-            
-            terminal_input.submit(
-                fn=process_terminal_answer,
-                inputs=[terminal_input, terminal_output],
-                outputs=[terminal_output, terminal_input]
-            )
+    
+    # Event handlers - Define AFTER all components are created
+    start_test_btn.click(
+        fn=start_terminal_test,
+        inputs=[use_extracted, manual_skills_terminal],
+        outputs=[terminal_output, terminal_input]
+    )
+    
+    terminal_input.submit(
+        fn=process_terminal_answer,
+        inputs=[terminal_input, terminal_output],
+        outputs=[terminal_output, terminal_input, domain_suggestions_output]
+    )
 
 if __name__ == "__main__":
     demo.launch(server_name="127.0.0.1", server_port=7861)
