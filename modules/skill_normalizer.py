@@ -4,15 +4,7 @@ import os
 from typing import List
 
 def save_normalized_skills(skills: List[str]) -> List[str]:
-    """
-    Normalize and save the extracted skills.
-    
-    Args:
-        skills: List of skill strings to normalize
-        
-    Returns:
-        List of normalized skills
-    """
+
     if not skills:
         return []
         
